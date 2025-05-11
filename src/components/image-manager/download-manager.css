@@ -36,6 +36,8 @@
 .file {
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    gap: 10px;
 }
 
 .file-title {
@@ -47,4 +49,15 @@
 
 .file-size {
     flex: 1;
+    text-align: center;
+}
+
+.file-progress {
+    flex: 1;
+    text-align: center;
+}
+
+.file-link {
+    flex: 1;
+    text-align: right;
 }

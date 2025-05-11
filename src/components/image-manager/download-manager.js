@@ -20,11 +20,6 @@ export default class DownloadManager {
     this.init();
   }
 
-  init() {
-    this.createBaseDom();
-    this.displayFiles();
-  }
-
   bindToDOM(container) {
     if (!(container instanceof HTMLElement)) {
       throw new Error("Container is not HTMLElement!");
@@ -32,14 +27,61 @@ export default class DownloadManager {
     return container;
   }
 
-  downloadFile(numFile) {
+  init() {
+    this.createBaseDom();
+    this.displayFiles();
+    this.eventInit();
+  }
+
+  eventInit() {
+    this.fileSheet.addEventListener("click", this.onClickFileSheet.bind(this));
+  }
+
+  onClickFileSheet(event) {
+    if (
+      event.target &&
+      event.target.tagName === "A" &&
+      event.target.classList.contains("file-link")
+    ) {
+      event.preventDefault();
+      const file = event.target.closest(".file");
+      const numFile = file.dataset.id;
+      const progressElement = file.querySelector(".file-progress");
+      this.downloadFile(
+        numFile,
+        this.updateProgress.bind(this, progressElement),
+      );
+    }
+  }
+
+  updateProgress(progressElement, value, max) {
+    progressElement.max = max;
+    progressElement.value = value;
+  }
+
+  async downloadFile(numFile, updateProgress) {
+    updateProgress(0, 0);
+    const response = await fetch(
+      `data:${jsonData.files[numFile].contentType};base64,${jsonData.files[numFile].dataFile}`,
+    );
+    const reader = response.body.getReader();
+    const contentLength = +response.headers.get("Content-Length");
+    let receivedLength = 0;
+    let chunks = [];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      receivedLength += value.length;
+      updateProgress(receivedLength, contentLength);
+    }
+    const blob = new Blob(chunks);
     const link = document.createElement("a");
-    link.style.display = "none";
-    link.href = `data:${jsonData.files[numFile].contentType};base64,${jsonData.files[numFile].dataFile}`;
+    link.href = URL.createObjectURL(blob);
     link.download =
       jsonData.files[numFile].name + "." + jsonData.files[numFile].extension;
     link.click();
-    this.bytesDownloaded += DownloadManager.fileSize(numFile);
+    this.bytesDownloaded += receivedLength;
     this.displayBytesDownloaded();
   }
 
@@ -50,7 +92,6 @@ export default class DownloadManager {
   onClickFileLink(numFile, event) {
     event.preventDefault();
     this.downloadFile(numFile);
-    console.log(numFile);
   }
 
   displayBytesDownloaded() {
@@ -61,31 +102,25 @@ export default class DownloadManager {
     if (jsonData.files) {
       const files = jsonData.files;
       for (const [index, file] of files.entries()) {
-        this.createFileDom(
-          file.name,
-          bytesToSize(DownloadManager.fileSize(index)),
-          index,
-        );
+        this.createFileDom(file.name, index);
       }
     }
   }
 
-  createFileDom(name, size, numFile) {
+  createFileDom(name, numFile) {
+    const size = DownloadManager.fileSize(numFile);
     const file = document.createElement("li");
     file.classList.add("file");
+    file.dataset.id = numFile;
     this.fileSheet.appendChild(file);
     file.insertAdjacentHTML(
       "beforeend",
       `
       <h3 class="file-title">${name}</h3>
-      <div class="file-size">${size}</div>
+      <div class="file-size">${bytesToSize(size)}</div>
+      <progress class="file-progress" max="0" value="0"></progress>
       <a class="file-link" href="#">Download</a>
-    `,
-    );
-    const fileLink = file.querySelector(".file-link");
-    fileLink.addEventListener(
-      "click",
-      this.onClickFileLink.bind(this, numFile),
+      `,
     );
   }
 
